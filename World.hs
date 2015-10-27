@@ -10,12 +10,6 @@ import Linear
 import qualified Constants
 import MathHelpers
 
-data MovingPosition = MovingPosition {
-    position :: V2 Double,
-    velocity :: V2 Double,
-    mass :: Double
-} deriving Show, Eq
-
 stepPosition :: Double -> MovingPosition -> MovingPosition
 stepPosition dt mpos = mpos { position = dt *^ v ^+^ r }
     where v = velocity mpos
@@ -23,12 +17,6 @@ stepPosition dt mpos = mpos { position = dt *^ v ^+^ r }
 
 momentum :: MovingPosition -> Double
 momentum mpos = mass mpos *^ velocity mpos
-
-class HasMovingPosition a where
-    movingPosition :: a -> MovingPosition
-    setPosition :: a -> MovingPosition -> a
-    updatePosition :: a -> (MovingPosition -> MovingPosition) -> a
-    updatePosition x f = setPosition x $ f $ movingPosition x
 
 data Rotation = Clockwise | Counterclockwise | NoRotation deriving Show, Eq
 rotationToFactor :: Num a => Rotation -> a
@@ -98,18 +86,37 @@ checkCollisions w = let
 
 collideAsteroids :: Asteroid -> Asteroid -> [Asteroid]
 collideAsteroids a1 a2 = let
-    mpos1 = movingPosition a1
-    mpos2 = movingPosition a2
-    m1 = mass mpos1
-    m2 = mass mpos2
-    u0 = (momentum mpos1 ^+^ momentum mpos2) / (mass mpos1 + mass mpos2)
-    v1 = velocity mpos1 ^-^ u0
-    v2 = velocity mpos2 ^-^ u0
-    eTotal = m1 / 2 * normSq v1 + m2 / 2 * normSq v2
-    breaks1 = m2 / (m1 + m2) * eTotal > breakEnergy a1
-    breaks2 = m1 / (m1 + m2) * eTotal > breakEnergy a2
-    eLost = (if breaks1 then breakEnergy a1 else 0) + (if breaks2 then breakEnergy a2 else 0)
-    coeffR = 1 - eLost / eTotal
-    v1' = -coeffR * v1
-    v2' = -coeffR * v2
-    -- TODO resolve breaking
+        mpos1 = movingPosition a1
+        mpos2 = movingPosition a2
+        m1 = mass mpos1
+        m2 = mass mpos2
+        u0 = (momentum mpos1 ^+^ momentum mpos2) / (mass mpos1 + mass mpos2)
+        mpos1_ = changeFrameV (negated u0) mpos1
+        mpos2_ = changeFrameV (negated u0) mpos2
+        v1 = velocity mpos1_
+        v2 = velocity mpos2_
+        eTotal = m1 / 2 * normSq v1 + m2 / 2 * normSq v2
+        breaks1 = m2 / (m1 + m2) * eTotal > breakEnergy a1
+        breaks2 = m1 / (m1 + m2) * eTotal > breakEnergy a2
+        eLost = (if breaks1 then breakEnergy a1 else 0) + (if breaks2 then breakEnergy a2 else 0)
+        coeffR = 1 - eLost / eTotal
+        mpos1_' = mpos1_ { velocity = -coeffR * v1 }
+        mpos2_' = mpos2_ { velocity = -coeffR * v2 }
+        a1results = if breaks1 then break (setPosition a1 mpos1_') else [setPosition a1 mpos1_']
+        a2results = if breaks2 then break (setPosition a1 mpos2_') else [setPosition a2 mpos2_']
+    in
+        map (flip updatePosition $ changeFrameV u0) (a1results ++ a2results)
+
+break :: Asteroid -> [Double] -> ([Asteroid], [Double])
+break ast rng = let
+        mpos = movingPosition ast
+        v = velocity ast
+        energy = breakEnergy ast
+        m':a':rngrest = rng
+        mr = foldToUnitInterval m'
+        m1 = mr * mass (movingPosition ast)
+        m2 = (1 - mr) * mass (movingPosition ast)
+        scatterDirection = rotatedUnit (a' * 2 * pi)
+        extraMomentum = sqrt $ 2 * breakEnergy ast / (1/m1 * 1/m2)
+    in map ($ ast) [setPosition ast { mass = m1; velocity = v ^+^ scatterDirection ^* (extraMomentum / m1)},
+            setPosition ast { mass = m2; velocity = v ^-^ scatterDirection ^* (extraMomentum / m2)},
