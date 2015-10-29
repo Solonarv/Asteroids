@@ -7,7 +7,7 @@ import Render
 main = do
     mode <- displayMode
     print mode
-    -- play (displayMode width height) black startingState render handleInput stepWorld
+    play (displayMode width height) black startingState render handleInput stepWorld
 
 
 

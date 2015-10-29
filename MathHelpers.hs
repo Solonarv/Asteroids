@@ -53,3 +53,12 @@ foldToUnitInterval x = let ex = exp x in ex / (ex + 1)
 
 cartesianProduct :: [a] -> [b] -> [(a, b)]
 cartesianProduct xs ys = [(x, y) | x <- xs, y <- ys]
+
+liftF :: (Float -> a) -> (Double -> a)
+liftF = (double2Float .)
+
+liftF2 :: (Float -> Float -> a) -> (Double -> Double -> a)
+liftF2 f x1 x2 = f (double2Float x1) (double2Float x2)
+
+liftF3 :: (Float -> Float -> Float -> a) -> (Double -> Double -> Double -> a)
+liftF3 f x1 x2 x3 = f (double2Float x1) (double2Float x2) (double2Float x3)
